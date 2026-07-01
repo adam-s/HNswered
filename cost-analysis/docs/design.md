@@ -155,7 +155,7 @@ eviction).
 The shipped architecture was validated two ways:
 
 1. **Retrospective sweep** ([reports/report.md](reports/report.md)): 19,819 parents × (Algolia `parent_id` vs Firebase `kids[]` minus dead/deleted) cross-check. 99.99% live agreement per-parent averaged. Confirmed Algolia `parent_id` is effectively authoritative for direct descendants — the premise that made the "no Firebase recovery" decision safe.
-2. **Live audit harness** ([scripts/audit.mjs](../../scripts/audit.mjs) + [scripts/audit-analyze.mjs](../../scripts/audit-analyze.mjs)): bounded multi-user run against real HN over a configurable window. Divergence analyzer checks missed-replies, phantom-replies, self-contamination, retention, coverage, politeness against a fresh HN ground-truth fetch. See the [audit skill](../../.claude/skills/audit/SKILL.md) for invocation.
+2. **Live audit harness** ([scripts/audit.mjs](../../scripts/audit.mjs) + [scripts/audit-analyze.mjs](../../scripts/audit-analyze.mjs)): bounded multi-user run against real HN over a configurable window. Divergence analyzer checks missed-replies, phantom-replies, self-contamination, retention, coverage, politeness against a fresh HN ground-truth fetch. See the [audit skill](../../.agents/skills/audit/SKILL.md) for invocation.
 
 Both are repeatable. The sweep is a one-shot empirical snapshot; the audit is a watch-it-live harness. Re-run the sweep after any HN schema drift; re-run the audit before releases or after refactors touching polling/sync/storage paths.
 

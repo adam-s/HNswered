@@ -98,7 +98,7 @@ a viewport-sweep screenshotter or a color-palette extractor specific
 to this reviewer, put those here:
 
 ```
-.claude/skills/design-critique/
+.agents/skills/design-critique/
   SKILL.md
   <helper>.mjs
   <palette.json>    # only if specific to this skill

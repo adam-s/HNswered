@@ -50,7 +50,7 @@ The runner blocks on the foreground. Don't background it — see "Hard caps" bel
 
 ## Hard caps the skill MUST enforce
 
-CLAUDE.md hard rule: "do not pound HN." These caps exist to honor that.
+AGENTS.md hard rule: "do not pound HN." These caps exist to honor that.
 
 - **Wall time:** never invoke `audit.mjs` with `--duration` exceeding 120 (2 hours). For longer observation, schedule multiple separate audits.
 - **Request budget:** never invoke with `--budget` exceeding 8000 unless the user explicitly justifies it.

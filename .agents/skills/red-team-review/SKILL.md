@@ -79,7 +79,7 @@ scripts for, say, parsing the review output into a ranked TODO list,
 they go in this folder:
 
 ```
-.claude/skills/red-team-review/
+.agents/skills/red-team-review/
   SKILL.md        # this file
   <helper>.mjs    # optional helpers, live here only
 ```

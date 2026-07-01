@@ -1,6 +1,6 @@
 // Research-tooling HTTP helper. Not for production use — production polling
 // lives in src/ and obeys src/shared/constants.ts caps. This helper is for
-// one-shot research probes per the CLAUDE.md research-tooling carveout:
+// one-shot research probes per the AGENTS.md research-tooling carveout:
 // prefer concurrency + reactive 403/429 backoff over preemptive delays; log
 // throttled responses visibly.
 

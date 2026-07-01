@@ -147,13 +147,16 @@ security, performance. Return specific, actionable feedback.
 
 ## Drift check — what's in this repo
 
+This repo keeps agent-shared content in `.agents/` (canonical) so it works across coding agents: root `AGENTS.md` holds the project instructions, root `CLAUDE.md` imports it via `@AGENTS.md`, and `.claude/skills` is a symlink to `.agents/skills` so Claude Code auto-discovery still works.
+
 | Artifact | Status | Notes |
 |---|---|---|
-| `.claude/CLAUDE.md` | ✓ aligned | Project instructions, correctly placed |
-| `.claude/skills/red-team-review/` | ✓ aligned | Frontmatter has `name` + `description`. Could add `allowed-tools` if we wanted to auto-approve the Agent invocation |
-| `.claude/skills/design-critique/` | ✓ aligned | Same shape |
-| `.claude/skills/audit/` | NEW (this PR) | Shell-orchestrator pattern; uses `allowed-tools: Bash(node scripts/*.mjs *)` |
-| `.claude/settings.json` | ✓ aligned | Sparse permissions list. No hooks yet (none needed). |
+| `AGENTS.md` (root) | ✓ aligned | Canonical project instructions, cross-agent |
+| `CLAUDE.md` (root) | ✓ aligned | Thin `@AGENTS.md` import + Claude-specific notes |
+| `.claude/skills` → `.agents/skills` | ✓ aligned | Symlink; skill folders keep the standard `SKILL.md` shape |
+| `.agents/skills/red-team-review/` | ✓ aligned | Frontmatter has `name` + `description`. Could add `allowed-tools` if we wanted to auto-approve the Agent invocation |
+| `.agents/skills/design-critique/` | ✓ aligned | Same shape |
+| `.agents/skills/audit/` | ✓ aligned | Shell-orchestrator pattern; uses `allowed-tools: Bash(node scripts/*.mjs *)` |
 | `.claude/agents/` | not used | Nothing currently warrants a project-scoped subagent |
 | `.claude/hooks/` | not used | No automated lifecycle behaviors needed yet |
 

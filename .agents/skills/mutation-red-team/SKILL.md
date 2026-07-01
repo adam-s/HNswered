@@ -16,7 +16,7 @@ For context on why mutation scores beat coverage metrics: the classic Meta ACH /
 - User says: "trickster", "mutation test", "break the code", "grade the tests", "can my tests catch regressions", "find what my tests don't cover"
 - After a red-team-review finds a prod bug — run mutations against that invariant to confirm the regression test you just added actually catches future recurrences
 - After a large PR that added production code — spot-check the test suite before declaring it covered
-- Proactively on invariants the user flags as load-bearing (anything listed under CLAUDE.md "Hard rules" / "Load-bearing invariants")
+- Proactively on invariants the user flags as load-bearing (anything listed under AGENTS.md "Hard rules" / "Load-bearing invariants")
 - **Do NOT run** during an in-flight `audit` or live HN observation — worktree commands share `dist/` build output with the main tree via gitignored paths, and mutating the dist is not the point.
 
 ## How to invoke
@@ -32,7 +32,7 @@ Use the `Agent` tool with:
 
 ## Curated mutations (this project)
 
-Do NOT let the agent pick random lines. The signal-to-noise is terrible for random mutants. Hand-pick from load-bearing invariants documented in [.claude/CLAUDE.md](../../CLAUDE.md) and from prior red-team findings. Starter set for HNswered:
+Do NOT let the agent pick random lines. The signal-to-noise is terrible for random mutants. Hand-pick from load-bearing invariants documented in [AGENTS.md](../../../AGENTS.md) and from prior red-team findings. Starter set for HNswered:
 
 1. **Self-reply filter** — in [src/background/poller.ts](../../../src/background/poller.ts) `pollComments`, change `hit.author.toLowerCase() === hnUserLc` to `!==` (or delete the continue). A test suite that does its job must have a test seeding a self-authored reply and asserting it is NOT surfaced.
 2. **OVERLAP_MS ≥ AUTHOR_SYNC_MS assertion** — in [src/shared/constants.ts](../../../src/shared/constants.ts), loosen the module-load check (e.g., drop the `throw`). A principled suite must exercise that assertion path.
@@ -43,7 +43,7 @@ Do NOT let the agent pick random lines. The signal-to-noise is terrible for rand
 7. **Retention inequality off-by-one** — in [src/background/store.ts](../../../src/background/store.ts) `pruneReplies`, flip `>` to `>=` on the retention age comparison.
 8. **User-change clear** — in `clearPerUserState`, drop `backfillQueue` from the removed keys. Queue now references the previous user's parent IDs; next drain references evicted parents. Does any test cover switching users with a non-empty queue?
 
-Each of these targets a **named invariant** in CLAUDE.md or a **prior regression test**. A SURVIVED result on any of them is a specific, actionable coverage gap.
+Each of these targets a **named invariant** in AGENTS.md or a **prior regression test**. A SURVIVED result on any of them is a specific, actionable coverage gap.
 
 ## Prompt template
 
@@ -110,7 +110,7 @@ Don't obsess over getting to 100%. Some mutations are behaviorally identical (eq
 ## Scripts and assets
 
 No scripts today. If the starter mutation set grows past ~20, consider a
-small driver at `.claude/skills/mutation-red-team/run.mjs` that:
+small driver at `.agents/skills/mutation-red-team/run.mjs` that:
 
 - reads a list of mutations from `mutations.json` in this folder
 - spawns N Agent calls in parallel (one per mutation)

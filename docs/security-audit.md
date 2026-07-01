@@ -39,7 +39,7 @@ generic hardening advice.
    `navigator.sendBeacon`, or dynamic import from a URL.
 
 6. **SW-scope leakage.** `self.__hnswered` is deliberately exposed in the
-   service worker (documented in `CLAUDE.md`). Confirm it is NOT reachable
+   service worker (documented in `AGENTS.md`). Confirm it is NOT reachable
    from content-script or page scope and carries no secrets.
 
 7. **Supply chain.** Check `package.json` and `pnpm-lock.yaml` for
