@@ -70,7 +70,7 @@ const algoliaClient = {
     let page = 0;
     while (page < MAX_PAGES) {
       const pageParam = page === 0 ? "" : `&page=${page}`;
-      const url = `${ALGOLIA_API}/search?tags=comment&numericFilters=${nf}&hitsPerPage=${ALGOLIA_HITS_PER_PAGE}${pageParam}`;
+      const url = `${ALGOLIA_API}/search_by_date?tags=comment&numericFilters=${nf}&hitsPerPage=${ALGOLIA_HITS_PER_PAGE}${pageParam}`;
       const data = await fetchJSON(url);
       for (const h of data.hits) out.push(h);
       if (data.hits.length < ALGOLIA_HITS_PER_PAGE) break;
@@ -214,7 +214,8 @@ function createStore(area = chrome.storage.local) {
         "lastAuthorSync",
         "lastBackfillSweepAt",
         "backfillSweepFloor",
-        "backfillQueue"
+        "backfillQueue",
+        "failureStreak"
       ]);
     },
     async getBytesInUse() {
@@ -247,6 +248,16 @@ function createStore(area = chrome.storage.local) {
     },
     async setBackfillQueue(queue) {
       await set("backfillQueue", queue);
+    },
+    async getFailureStreak() {
+      return get("failureStreak", { signature: "", count: 0 });
+    },
+    async setFailureStreak(streak) {
+      await set("failureStreak", streak);
+    },
+    async clearFailureStreak() {
+      const current = await this.getFailureStreak();
+      if (current.count > 0) await area.remove("failureStreak");
     }
   };
 }
@@ -573,6 +584,22 @@ async function drainBackfillQueueCompletely(client, store) {
   return { itemsProcessed, repliesSurfaced };
 }
 
+const FAILURE_STREAK_ERROR_THRESHOLD = 3;
+function failureSignature(err) {
+  const msg = err instanceof Error ? err.message : String(err);
+  return msg.replace(/\d+/g, "#");
+}
+async function recordFailure(store, err) {
+  const signature = failureSignature(err);
+  const prior = await store.getFailureStreak();
+  const count = prior.signature === signature ? prior.count + 1 : 1;
+  await store.setFailureStreak({ signature, count });
+  return { count, escalate: count >= FAILURE_STREAK_ERROR_THRESHOLD };
+}
+async function recordSuccess(store) {
+  await store.clearFailureStreak();
+}
+
 async function updateBadge(unreadCount) {
   const text = unreadCount > 0 ? unreadCount > 99 ? "99+" : String(unreadCount) : "";
   await chrome.action.setBadgeText({ text });
@@ -583,6 +610,17 @@ async function updateBadge(unreadCount) {
 }
 
 const store = createStore();
+async function reportPollFailure(source, err) {
+  const { count, escalate } = await recordFailure(store, err);
+  if (escalate) {
+    console.error(
+      `[HNswered] ${source} failed — same error ${count} polls in a row. This is NOT a transient hiccup; likely an HN/Algolia API change or an extension bug. Reply capture may be degraded until it's addressed:`,
+      err
+    );
+  } else {
+    console.warn(`[HNswered] ${source} failed (${count}/${FAILURE_STREAK_ERROR_THRESHOLD} before escalation — transient unless it repeats):`, err);
+  }
+}
 async function refreshBadge() {
   const n = await store.getUnreadCount();
   await updateBadge(n);
@@ -644,8 +682,9 @@ async function runTick() {
       await maybeEnqueueBackfillSweep(store, tickNow);
       await pollComments(algoliaClient, store);
       await drainOneBackfillItem(algoliaClient, store, tickNow);
+      await recordSuccess(store);
     } catch (err) {
-      console.error("[HNswered] tick failed:", err);
+      await reportPollFailure("tick", err);
     } finally {
       await refreshBadge();
     }
@@ -681,8 +720,9 @@ async function runRefresh(fullDrain = false) {
       } else {
         await drainOneBackfillItem(algoliaClient, store, refreshNow);
       }
+      await recordSuccess(store);
     } catch (err) {
-      console.error("[HNswered] refresh failed:", err);
+      await reportPollFailure("refresh", err);
     } finally {
       await refreshBadge();
     }

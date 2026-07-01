@@ -1,5 +1,6 @@
 import type {
   Config,
+  FailureStreak,
   MonitoredItem,
   Reply,
   StoreSchema,
@@ -34,6 +35,11 @@ export interface Store {
   setTimestamp(key: TimestampKey, ts: number): Promise<void>;
   getBackfillQueue(): Promise<number[]>;
   setBackfillQueue(queue: number[]): Promise<void>;
+  getFailureStreak(): Promise<FailureStreak>;
+  setFailureStreak(streak: FailureStreak): Promise<void>;
+  /** No-op when the streak is already clear, so healthy ticks don't pay a
+   *  storage write. */
+  clearFailureStreak(): Promise<void>;
 }
 
 export function createStore(area: Area = chrome.storage.local): Store {
@@ -189,6 +195,7 @@ export function createStore(area: Area = chrome.storage.local): Store {
         'lastBackfillSweepAt',
         'backfillSweepFloor',
         'backfillQueue',
+        'failureStreak',
       ]);
     },
     async getBytesInUse() {
@@ -221,6 +228,16 @@ export function createStore(area: Area = chrome.storage.local): Store {
     },
     async setBackfillQueue(queue) {
       await set('backfillQueue', queue);
+    },
+    async getFailureStreak() {
+      return get('failureStreak', { signature: '', count: 0 });
+    },
+    async setFailureStreak(streak) {
+      await set('failureStreak', streak);
+    },
+    async clearFailureStreak() {
+      const current = await this.getFailureStreak();
+      if (current.count > 0) await area.remove('failureStreak');
     },
   };
 }

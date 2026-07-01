@@ -83,7 +83,7 @@ export function createFakeHN(): FakeHN {
     },
     async searchByParent(parentId, sinceEpochSec) {
       requests.searchByParent++;
-      log.push(`GET algolia/search?parent_id=${parentId}${sinceEpochSec !== undefined ? `&since=${sinceEpochSec}` : ''}`);
+      log.push(`GET algolia/search_by_date?parent_id=${parentId}${sinceEpochSec !== undefined ? `&since=${sinceEpochSec}` : ''}`);
       const list = parentChildren.get(parentId) ?? [];
       const filtered = sinceEpochSec !== undefined
         ? list.filter((h) => h.created_at_i > sinceEpochSec)

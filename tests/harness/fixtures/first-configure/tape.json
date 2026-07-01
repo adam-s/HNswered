@@ -29224,7 +29224,7 @@
       }
     },
     {
-      "url": "https://hn.algolia.com/api/v1/search?tags=comment&numericFilters=parent_id=47878905,created_at_i%3E1776384843&hitsPerPage=1000",
+      "url": "https://hn.algolia.com/api/v1/search_by_date?tags=comment&numericFilters=parent_id=47878905,created_at_i%3E1776384843&hitsPerPage=1000",
       "status": 200,
       "response": {
         "exhaustive": {
@@ -32896,7 +32896,7 @@
       }
     },
     {
-      "url": "https://hn.algolia.com/api/v1/search?tags=comment&numericFilters=parent_id=47871484,created_at_i%3E1776384843&hitsPerPage=1000",
+      "url": "https://hn.algolia.com/api/v1/search_by_date?tags=comment&numericFilters=parent_id=47871484,created_at_i%3E1776384843&hitsPerPage=1000",
       "status": 200,
       "response": {
         "exhaustive": {
@@ -32923,7 +32923,7 @@
       }
     },
     {
-      "url": "https://hn.algolia.com/api/v1/search?tags=comment&numericFilters=parent_id=47870314,created_at_i%3E1776384843&hitsPerPage=1000",
+      "url": "https://hn.algolia.com/api/v1/search_by_date?tags=comment&numericFilters=parent_id=47870314,created_at_i%3E1776384843&hitsPerPage=1000",
       "status": 200,
       "response": {
         "exhaustive": {
@@ -33332,7 +33332,7 @@
       }
     },
     {
-      "url": "https://hn.algolia.com/api/v1/search?tags=comment&numericFilters=parent_id=47868778,created_at_i%3E1776384843&hitsPerPage=1000",
+      "url": "https://hn.algolia.com/api/v1/search_by_date?tags=comment&numericFilters=parent_id=47868778,created_at_i%3E1776384843&hitsPerPage=1000",
       "status": 200,
       "response": {
         "exhaustive": {
@@ -33400,7 +33400,7 @@
       }
     },
     {
-      "url": "https://hn.algolia.com/api/v1/search?tags=comment&numericFilters=parent_id=47866860,created_at_i%3E1776384843&hitsPerPage=1000",
+      "url": "https://hn.algolia.com/api/v1/search_by_date?tags=comment&numericFilters=parent_id=47866860,created_at_i%3E1776384843&hitsPerPage=1000",
       "status": 200,
       "response": {
         "exhaustive": {
@@ -34397,7 +34397,7 @@
       }
     },
     {
-      "url": "https://hn.algolia.com/api/v1/search?tags=comment&numericFilters=parent_id=47863217,created_at_i%3E1776384843&hitsPerPage=1000",
+      "url": "https://hn.algolia.com/api/v1/search_by_date?tags=comment&numericFilters=parent_id=47863217,created_at_i%3E1776384843&hitsPerPage=1000",
       "status": 200,
       "response": {
         "exhaustive": {
@@ -36205,7 +36205,7 @@
       }
     },
     {
-      "url": "https://hn.algolia.com/api/v1/search?tags=comment&numericFilters=parent_id=47855093,created_at_i%3E1776384843&hitsPerPage=1000",
+      "url": "https://hn.algolia.com/api/v1/search_by_date?tags=comment&numericFilters=parent_id=47855093,created_at_i%3E1776384843&hitsPerPage=1000",
       "status": 200,
       "response": {
         "exhaustive": {
@@ -36439,7 +36439,7 @@
       }
     },
     {
-      "url": "https://hn.algolia.com/api/v1/search?tags=comment&numericFilters=parent_id=47837599,created_at_i%3E1776384843&hitsPerPage=1000",
+      "url": "https://hn.algolia.com/api/v1/search_by_date?tags=comment&numericFilters=parent_id=47837599,created_at_i%3E1776384843&hitsPerPage=1000",
       "status": 200,
       "response": {
         "exhaustive": {
@@ -36466,7 +36466,7 @@
       }
     },
     {
-      "url": "https://hn.algolia.com/api/v1/search?tags=comment&numericFilters=parent_id=47834565,created_at_i%3E1776384843&hitsPerPage=1000",
+      "url": "https://hn.algolia.com/api/v1/search_by_date?tags=comment&numericFilters=parent_id=47834565,created_at_i%3E1776384843&hitsPerPage=1000",
       "status": 200,
       "response": {
         "exhaustive": {
@@ -37621,7 +37621,7 @@
       }
     },
     {
-      "url": "https://hn.algolia.com/api/v1/search?tags=comment&numericFilters=parent_id=47827631,created_at_i%3E1776384843&hitsPerPage=1000",
+      "url": "https://hn.algolia.com/api/v1/search_by_date?tags=comment&numericFilters=parent_id=47827631,created_at_i%3E1776384843&hitsPerPage=1000",
       "status": 200,
       "response": {
         "exhaustive": {
@@ -37648,7 +37648,7 @@
       }
     },
     {
-      "url": "https://hn.algolia.com/api/v1/search?tags=comment&numericFilters=parent_id=47810006,created_at_i%3E1776384843&hitsPerPage=1000",
+      "url": "https://hn.algolia.com/api/v1/search_by_date?tags=comment&numericFilters=parent_id=47810006,created_at_i%3E1776384843&hitsPerPage=1000",
       "status": 200,
       "response": {
         "exhaustive": {
@@ -37676,7 +37676,7 @@
       }
     },
     {
-      "url": "https://hn.algolia.com/api/v1/search?tags=comment&numericFilters=parent_id=47806021,created_at_i%3E1776384843&hitsPerPage=1000",
+      "url": "https://hn.algolia.com/api/v1/search_by_date?tags=comment&numericFilters=parent_id=47806021,created_at_i%3E1776384843&hitsPerPage=1000",
       "status": 200,
       "response": {
         "exhaustive": {

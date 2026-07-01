@@ -31,7 +31,9 @@ Three layers, in priority order:
    authored user items are known before replies land on them.
 
 3. **Backfill catch-up — gap recovery.**
-   Per-parent `search?tags=comment&numericFilters=parent_id=<id>,created_at_i>floor`
+   Per-parent `search_by_date?tags=comment&numericFilters=parent_id=<id>,created_at_i>floor`
+   (the by-date endpoint is mandatory: since 2026-07 Algolia's relevance index
+   rejects `parent_id` in `numericFilters` with HTTP 400)
    sweep that fills offline-gap coverage holes the rolling comment-feed window
    can't cover, plus first-configure history catch-up. See §7 for the full
    design. Algolia-only; **no Firebase recovery layer**. The retrospective

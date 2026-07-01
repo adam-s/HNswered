@@ -99,6 +99,17 @@ export interface StoreSchema {
   // Parent item IDs awaiting backfill, ordered newest-first by
   // item.submittedAt at enqueue time. Drip worker pops the head each tick.
   backfillQueue: number[];
+  // Consecutive tick/refresh failure tracking. Persisted (not in-memory)
+  // because the MV3 SW suspends between ticks, which would reset a module
+  // variable before a streak could ever accumulate.
+  failureStreak: FailureStreak;
+}
+
+export interface FailureStreak {
+  // Normalized error message (digits collapsed) of the most recent failure.
+  signature: string;
+  // Consecutive failures with this signature. Any successful poll resets to 0.
+  count: number;
 }
 
 export type TimestampKey =

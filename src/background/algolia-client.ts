@@ -131,7 +131,11 @@ export const algoliaClient: AlgoliaClient = {
     let page = 0;
     while (page < MAX_PAGES) {
       const pageParam = page === 0 ? '' : `&page=${page}`;
-      const url = `${ALGOLIA_API}/search?tags=comment&numericFilters=${nf}&hitsPerPage=${ALGOLIA_HITS_PER_PAGE}${pageParam}`;
+      // search_by_date, NOT search: as of 2026-07 Algolia's relevance index
+      // rejects parent_id in numericFilters (400 "attribute not specified in
+      // numericAttributesForFiltering"); the by-date index still allows it.
+      // Sort order is irrelevant here — we paginate fully and dedupe.
+      const url = `${ALGOLIA_API}/search_by_date?tags=comment&numericFilters=${nf}&hitsPerPage=${ALGOLIA_HITS_PER_PAGE}${pageParam}`;
       const data = await fetchJSON<AlgoliaResponse<AlgoliaCommentHit>>(url);
       for (const h of data.hits) out.push(h);
       if (data.hits.length < ALGOLIA_HITS_PER_PAGE) break;

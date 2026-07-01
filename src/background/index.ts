@@ -4,9 +4,28 @@ import { DEBUG, log, logErr } from '../shared/debug.ts';
 import { algoliaClient } from './algolia-client.ts';
 import { createStore } from './store.ts';
 import { drainBackfillQueueCompletely, drainOneBackfillItem, maybeEnqueueBackfillSweep, maybeSyncAuthor, pollComments, syncAuthor } from './poller.ts';
+import { FAILURE_STREAK_ERROR_THRESHOLD, recordFailure, recordSuccess } from './failure-streak.ts';
 import { updateBadge } from './badge.ts';
 
 const store = createStore();
+
+// warn on a one-off failure (transient HN/Algolia hiccups self-heal next
+// tick and don't merit a red chrome://extensions entry); escalate to
+// console.error when the SAME error repeats consecutively — that's
+// persistent breakage a human needs to look at, not noise.
+async function reportPollFailure(source: 'tick' | 'refresh', err: unknown): Promise<void> {
+  const { count, escalate } = await recordFailure(store, err);
+  if (escalate) {
+    console.error(
+      `[HNswered] ${source} failed — same error ${count} polls in a row. ` +
+      `This is NOT a transient hiccup; likely an HN/Algolia API change or an extension bug. ` +
+      `Reply capture may be degraded until it's addressed:`,
+      err,
+    );
+  } else {
+    console.warn(`[HNswered] ${source} failed (${count}/${FAILURE_STREAK_ERROR_THRESHOLD} before escalation — transient unless it repeats):`, err);
+  }
+}
 
 async function refreshBadge() {
   const n = await store.getUnreadCount();
@@ -111,9 +130,10 @@ async function runTick(): Promise<void> {
       await pollComments(algoliaClient, store);
       // One backfill drain per tick — bounded work regardless of queue size.
       await drainOneBackfillItem(algoliaClient, store, tickNow);
+      await recordSuccess(store);
     } catch (err) {
       logErr('index.runTick', `failed`, err);
-      console.error('[HNswered] tick failed:', err);
+      await reportPollFailure('tick', err);
     } finally {
       await refreshBadge();
       // Exit summary is a debug-only dump. Gate the storage reads on DEBUG so
@@ -182,9 +202,10 @@ async function runRefresh(fullDrain = false): Promise<void> {
       } else {
         await drainOneBackfillItem(algoliaClient, store, refreshNow);
       }
+      await recordSuccess(store);
     } catch (err) {
       logErr('index.runRefresh', `failed`, err);
-      console.error('[HNswered] refresh failed:', err);
+      await reportPollFailure('refresh', err);
     } finally {
       await refreshBadge();
       log('index.runRefresh', `EXIT`);

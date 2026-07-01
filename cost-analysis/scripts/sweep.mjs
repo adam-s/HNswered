@@ -94,7 +94,7 @@ async function fetchDirectChildren(parentId) {
   const out = [];
   let page = 0;
   while (true) {
-    const url = `${ALGOLIA}/search?tags=comment&numericFilters=parent_id=${parentId}&hitsPerPage=1000&page=${page}`;
+    const url = `${ALGOLIA}/search_by_date?tags=comment&numericFilters=parent_id=${parentId}&hitsPerPage=1000&page=${page}`;
     const res = await fetchWithBackoff(url);
     const data = await res.json();
     for (const h of data.hits) out.push(h);
