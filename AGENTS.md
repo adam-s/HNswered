@@ -36,6 +36,8 @@ Chrome MV3 extension (Svelte 5 side panel + background SW) watching HN for repli
 - `pnpm test` — unit (`tests/unit/*.test.ts`), ~2s, shims at `tests/shim/{chrome,fake-hn}.ts`.
 - `pnpm harness:replay` — deterministic tape replay, ~5s.
 - `pnpm impersonate` — Playwright + live HN, budget-bounded, single-user, never loops.
+- `pnpm ui` — asserted sidepanel UI spec (Playwright + real extension, ~60s): render gate, functional flows, pagination budget, sanitization, 360px layout lint, storage-churn isolation, CDP leak-trajectory budgets. Fully offline — seeds `chrome.storage.local` directly and asserts zero HN requests. Screenshots to `.snapshots/ui-spec/` for review.
+- `pnpm snapshot` / `pnpm perf-profile` — report-only companions (visual capture for review; CDP render profiling). They print, `pnpm ui` asserts.
 - `node scripts/audit.mjs && node scripts/audit-analyze.mjs` — bounded multi-user live audit. Invoke via [audit skill](.agents/skills/audit/SKILL.md).
 - **`pnpm build` after ANY edit to `src/`** — the user loads the extension from `dist/`. Chrome does not see `src/` changes until `dist/` is rebuilt AND the extension is reloaded in `chrome://extensions`. Type-check passing is not the same as dist reflecting the edit. After the user reloads, also confirm the SW restarted (old SW keeps running the old code until reload).
 - **`DEBUG` in [src/shared/debug.ts](src/shared/debug.ts)** toggles all `log()` / `logErr()` output. It is `false` in shipped prod; flip to `true` + rebuild when diagnosing live behavior. The user sees *no* console output when `DEBUG=false`, regardless of how much the code calls `log(...)`.
