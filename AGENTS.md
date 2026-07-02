@@ -64,7 +64,7 @@ pnpm harness:replay                              # verify
 
 ## Skills
 
-Reusable agent playbooks at `.agents/skills/<name>/SKILL.md` (Claude Code auto-discovers them via the `.claude/skills` symlink; other agents can follow them as documented procedures). All read-only against production code. Format conventions: [.agents/reference/anthropic-conventions.md](.agents/reference/anthropic-conventions.md).
+Reusable agent playbooks at `.agents/skills/<name>/SKILL.md` (other agents can follow them as documented procedures). `.claude/skills` is a **symlink** to `.agents/skills` — it exists solely for Claude Code's auto-discovery. Never replace it with a real directory, and add new skills under `.agents/skills/` only, so the canon stays in one place. All skills are read-only against production code. Format conventions: [.agents/reference/anthropic-conventions.md](.agents/reference/anthropic-conventions.md).
 
 - [red-team-review](.agents/skills/red-team-review/SKILL.md) — adversarial bug hunt of production code.
 - [test-red-team](.agents/skills/test-red-team/SKILL.md) — adversarial audit of the test suite (tautologies, shim lies, coverage gaps).
