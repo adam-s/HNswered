@@ -4,28 +4,10 @@ import { DEBUG, log, logErr } from '../shared/debug.ts';
 import { algoliaClient } from './algolia-client.ts';
 import { createStore } from './store.ts';
 import { drainBackfillQueueCompletely, drainOneBackfillItem, maybeEnqueueBackfillSweep, maybeSyncAuthor, pollComments, syncAuthor } from './poller.ts';
-import { FAILURE_STREAK_ERROR_THRESHOLD, recordFailure, recordSuccess } from './failure-streak.ts';
+import { trackPollOutcome } from './failure-streak.ts';
 import { updateBadge } from './badge.ts';
 
 const store = createStore();
-
-// warn on a one-off failure (transient HN/Algolia hiccups self-heal next
-// tick and don't merit a red chrome://extensions entry); escalate to
-// console.error when the SAME error repeats consecutively — that's
-// persistent breakage a human needs to look at, not noise.
-async function reportPollFailure(source: 'tick' | 'refresh', err: unknown): Promise<void> {
-  const { count, escalate } = await recordFailure(store, err);
-  if (escalate) {
-    console.error(
-      `[HNswered] ${source} failed — same error ${count} polls in a row. ` +
-      `This is NOT a transient hiccup; likely an HN/Algolia API change or an extension bug. ` +
-      `Reply capture may be degraded until it's addressed:`,
-      err,
-    );
-  } else {
-    console.warn(`[HNswered] ${source} failed (${count}/${FAILURE_STREAK_ERROR_THRESHOLD} before escalation — transient unless it repeats):`, err);
-  }
-}
 
 async function refreshBadge() {
   const n = await store.getUnreadCount();
@@ -98,7 +80,10 @@ async function runTick(): Promise<void> {
     }
     const lockGrantedAt = Date.now();
     const lockWaitMs = lockGrantedAt - lockRequestedAt;
+    // trackPollOutcome owns the success/failure streak bookkeeping and never
+    // throws — the try here only exists for the finally.
     try {
+      await trackPollOutcome(store, 'tick', async () => {
       const tickNow = lockGrantedAt;
       if (lockWaitMs > 50) {
         // Waiting for the lock > one event-loop tick usually means a prior
@@ -130,10 +115,7 @@ async function runTick(): Promise<void> {
       await pollComments(algoliaClient, store);
       // One backfill drain per tick — bounded work regardless of queue size.
       await drainOneBackfillItem(algoliaClient, store, tickNow);
-      await recordSuccess(store);
-    } catch (err) {
-      logErr('index.runTick', `failed`, err);
-      await reportPollFailure('tick', err);
+      });
     } finally {
       await refreshBadge();
       // Exit summary is a debug-only dump. Gate the storage reads on DEBUG so
@@ -180,6 +162,7 @@ async function runRefresh(fullDrain = false): Promise<void> {
 
   await navigator.locks.request(LOCK.TICK, async () => {
     try {
+      await trackPollOutcome(store, 'refresh', async () => {
       const config = await store.getConfig();
       log('index.runRefresh', `config hnUser=${JSON.stringify(config.hnUser)} tickMin=${config.tickMinutes} retDays=${config.retentionDays}`);
       if (!config.hnUser) {
@@ -202,10 +185,7 @@ async function runRefresh(fullDrain = false): Promise<void> {
       } else {
         await drainOneBackfillItem(algoliaClient, store, refreshNow);
       }
-      await recordSuccess(store);
-    } catch (err) {
-      logErr('index.runRefresh', `failed`, err);
-      await reportPollFailure('refresh', err);
+      });
     } finally {
       await refreshBadge();
       log('index.runRefresh', `EXIT`);
@@ -324,13 +304,18 @@ chrome.runtime.onMessage.addListener((message: SidepanelMessage, sender, sendRes
             // in-window set, then drain every item end-to-end. Bounded at
             // |monitored ∩ window| × per-request time (~500ms/item).
             log('index.onMessage', `backfillDays widened → running full catch-up inline`);
+            // Fire-and-forget: trackPollOutcome swallows failures into the
+            // streak (an Algolia error here must not become an unhandled SW
+            // rejection), and refreshBadge runs regardless of outcome.
             void (async () => {
               await withTickLock(async () => {
-                await maybeEnqueueBackfillSweep(store);
-                await drainBackfillQueueCompletely(algoliaClient, store);
+                await trackPollOutcome(store, 'refresh', async () => {
+                  await maybeEnqueueBackfillSweep(store);
+                  await drainBackfillQueueCompletely(algoliaClient, store);
+                });
                 await refreshBadge();
               });
-            })();
+            })().catch((err) => logErr('index.onMessage', 'inline fullDrain wrapper failed', err));
           }
           await ensureAlarms();
           respond({ ok: true, data: config });

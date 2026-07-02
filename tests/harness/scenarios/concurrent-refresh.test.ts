@@ -14,12 +14,17 @@ test('parallel runRefresh calls coalesce into one slot of HN work', async () => 
   const driver = await createDriver({ scenario: scenario.name, mode: 'replay' });
   try {
     await scenario.run(driver);
-    // Sanity bound: the scenario should fit within two refresh-flows worth of
-    // requests. If it ever creeps past 250, either the production code's
-    // refresh-time work grew significantly or coalescing is silently leaking.
-    assert.ok(
-      driver.hnRequests.length <= 250,
-      `concurrent-refresh made ${driver.hnRequests.length} HN requests, expected <= 250`,
+    // Exact-consumption assertion: replay is deterministic, so the scenario
+    // must make EXACTLY as many HN requests as the tape recorded. A loose
+    // upper bound (the old <= 250) cannot catch a coalescing regression —
+    // the duplicate refresh's TapeMisses are retried by fetchJSON and then
+    // swallowed by the failure tracking, so the test would pass on storage
+    // state alone. Extra requests can't hide from an exact count.
+    assert.equal(
+      driver.hnRequests.length,
+      driver.tape.calls.length,
+      `concurrent-refresh made ${driver.hnRequests.length} HN requests, tape recorded ${driver.tape.calls.length} — ` +
+      `more means coalescing leaked a duplicate refresh, fewer means the scenario drifted from the tape`,
     );
   } finally {
     await driver.uninstall();

@@ -6,6 +6,7 @@
     "retentionDays": 30,
     "tickMinutes": 5
   },
+  "failureStreak": null,
   "monitored": {
     "43786111": {
       "id": 43786111,

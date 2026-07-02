@@ -106,10 +106,15 @@ export interface StoreSchema {
 }
 
 export interface FailureStreak {
-  // Normalized error message (digits collapsed) of the most recent failure.
+  // Normalized error message (digits collapsed, HTTP status preserved) of
+  // the MOST RECENT failure.
   signature: string;
-  // Consecutive failures with this signature. Any successful poll resets to 0.
+  // Consecutive poll failures, regardless of signature. Any successful poll
+  // resets to 0.
   count: number;
+  // Whether every failure in the streak shares one signature — drives the
+  // escalation message ("API change/bug" vs "outage").
+  uniform: boolean;
 }
 
 export type TimestampKey =

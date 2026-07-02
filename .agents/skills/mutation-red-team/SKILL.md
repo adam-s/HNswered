@@ -25,7 +25,8 @@ Use the `Agent` tool with:
 
 - `subagent_type: "general-purpose"`
 - `model: "opus"`
-- `isolation: "worktree"` — **mandatory**. The agent edits production code; without isolation it would dirty the user's working tree. With isolation, a clean revert at the end of the run makes the worktree auto-clean up.
+- `isolation: "worktree"` — **mandatory as the outer guard**. The agent edits production code; without isolation it would dirty the user's working tree. With isolation, a clean revert at the end of the run makes the worktree auto-clean up.
+- **Copies beat worktrees for the actual mutation work (2026-07-01 incident).** In a parallel fleet, agents resumed after transient API errors were re-pointed at a *shared* worktree and mutated each other's files mid-run, corrupting verdicts; worktrees under `.claude/worktrees/` also leak their `.claude/skills` into the parent session's skill registry (scoped-skill registration). The prompt template therefore instructs the agent to snapshot the repo into its own fresh temp dir (`rsync -a --exclude node_modules --exclude .git`, or `git archive | tar -x` for committed state) and run the mutation + suite there. A worktree is still fine for a single, non-resumed agent — the failure mode is parallelism + resume + repo-internal placement. If a verdict smells contaminated (failures the mutation can't cause), re-verify in a fresh copy before believing it.
 - `description`: 3–5 word description (e.g. `"Mutation red-team poller"`)
 - `prompt`: follow the template below
 - One agent invocation per mutation. To cover N mutations, issue N parallel Agent calls in a single message — each gets its own worktree and runs independently.
@@ -57,6 +58,10 @@ tree is disposable.
 
 ## Rules
 
+- FIRST: snapshot the repo into your own fresh temp directory
+  (`rsync -a --exclude node_modules --exclude .git <repo>/ <tmpdir>/`) and do
+  ALL work in that copy — never in a shared or pre-provisioned worktree, and
+  never in the main tree. Then `pnpm install` inside the copy.
 - Apply EXACTLY the mutation specified below. Do not invent other mutations.
 - Do not touch any test file, harness file, tape, golden, or constants
   unrelated to the mutation. If the mutation is in constants, change only

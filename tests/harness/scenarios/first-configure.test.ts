@@ -14,11 +14,14 @@ test('first-configure replays deterministically against tape', async () => {
   const driver = await createDriver({ scenario: scenario.name, mode: 'replay' });
   try {
     await scenario.run(driver);
-    // Politeness: first-configure should fit within a reasonable request budget.
-    // If a future change blows the budget, we want a loud regression signal.
-    assert.ok(
-      driver.hnRequests.length <= 200,
-      `first-configure made ${driver.hnRequests.length} HN requests, expected <= 200`,
+    // Exact-consumption assertion (see concurrent-refresh.test.ts for the
+    // rationale): deterministic replay must consume exactly the tape. This
+    // doubles as the politeness budget — the tape length IS the recorded
+    // request cost of the scenario.
+    assert.equal(
+      driver.hnRequests.length,
+      driver.tape.calls.length,
+      `first-configure made ${driver.hnRequests.length} HN requests, tape recorded ${driver.tape.calls.length}`,
     );
   } finally {
     await driver.uninstall();

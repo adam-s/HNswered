@@ -84,6 +84,11 @@ export interface StorageSnapshot {
     backfillSweepFloor: number | null;
   };
   backfillQueue: number[];
+  // Failure-streak state. null when no streak (the healthy steady state).
+  // Deliberately IN the snapshot: a swallowed poll failure during a scenario
+  // (e.g. a TapeMiss from a coalescing regression) leaves a streak behind,
+  // turning an otherwise-invisible failure into a golden mismatch.
+  failureStreak: unknown;
   // hnRequestCount is intentionally NOT in the snapshot — real-network retries
   // during recording inflate the count vs replay (zero-latency, zero retries),
   // making goldens unstable. Use `driver.hnRequests.length` directly in test
@@ -190,6 +195,7 @@ export async function createDriver(opts: CreateDriverOptions): Promise<Driver> {
         backfillSweepFloor: (all.backfillSweepFloor as number | undefined) ?? null,
       },
       backfillQueue: (all.backfillQueue as number[] | undefined) ?? [],
+      failureStreak: all.failureStreak ?? null,
     };
   }
 

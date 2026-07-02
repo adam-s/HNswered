@@ -594,6 +594,50 @@ test('drain: filters out self-replies case-insensitively', async () => {
   } finally { off(); }
 });
 
+test('drain: fetch failure rotates the head to the tail and rethrows — one bad parent cannot starve the queue', async () => {
+  const shim = createChromeShim();
+  const off = installChromeShim(shim);
+  try {
+    const store = createStore(shim.storage.local);
+    const hn = createFakeHN();
+    await store.setConfig({ hnUser: 'alice', backfillDays: 7 });
+    const now = 100 * DAY_MS;
+
+    await store.setMonitored({
+      '7': monitoredStory({ id: 7, submittedAt: now - 2 * DAY_MS }),
+      '8': monitoredStory({ id: 8, submittedAt: now - 3 * DAY_MS }),
+    });
+    await store.setBackfillQueue([7, 8]);
+    await store.setTimestamp('backfillSweepFloor', now - 5 * DAY_MS);
+
+    // Parent 7's query fails deterministically (the 2026-07 Algolia
+    // parent_id incident shape); parent 8 works.
+    const flaky = {
+      ...hn,
+      searchByParent: async (id: number, since?: number) => {
+        if (id === 7) throw new Error('HTTP 400 https://hn.algolia.com/api/v1/search_by_date?parent_id=7');
+        return hn.searchByParent(id, since);
+      },
+    };
+
+    await assert.rejects(
+      () => drainOneBackfillItem(flaky, store, now),
+      /HTTP 400/,
+      'the failure still propagates so the tick-level streak sees it',
+    );
+    assert.deepEqual(await store.getBackfillQueue(), [8, 7], 'failed head rotated to tail, not stuck and not dropped');
+    const ts = await store.getTimestamps();
+    assert.equal(ts.backfillSweepFloor, now - 5 * DAY_MS, 'pinned floor untouched by the rotation');
+
+    // Next drain serves parent 8 — the bad head no longer blocks it.
+    const s = Math.floor((now - 60_000) / 1000);
+    hn.seedParentChild(8, commentHit({ id: 301, parent_id: 8, created_at_i: s, author: 'bob' }));
+    const surfaced = await drainOneBackfillItem(flaky, store, now);
+    assert.equal(surfaced, 1, 'parent behind the failing head drains normally');
+    assert.deepEqual(await store.getBackfillQueue(), [7], 'bad parent stays queued for retry');
+  } finally { off(); }
+});
+
 test('drain: parent evicted since enqueue → silently drops, no Algolia call for missing parent', async () => {
   const shim = createChromeShim();
   const off = installChromeShim(shim);

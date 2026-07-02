@@ -435,7 +435,21 @@ export async function drainOneBackfillItem(
   // floor. Over-fetching is dedup'd by `addReplies`; correctness > speed.
   const sinceMs = sweepFloorMs;
   const sinceSec = Math.floor(sinceMs / 1000);
-  const hits = await client.searchByParent(head, sinceSec);
+  let hits: AlgoliaCommentHit[];
+  try {
+    hits = await client.searchByParent(head, sinceSec);
+  } catch (err) {
+    // Rotate the failed head to the tail before rethrowing. A parent whose
+    // query fails deterministically (e.g. an upstream API contract change)
+    // must not pin the queue head forever — every parent behind it would be
+    // starved of gap recovery, which is silent capture loss. Rotation never
+    // drops the item, only deprioritizes it; the pinned sweep floor keeps
+    // its window intact for the retry, and transient failures just drain it
+    // one cycle later.
+    await store.setBackfillQueue([...rest, head]);
+    log('poller.BACKFILL.drain', `parent=${head} fetch failed — rotated to queue tail (queueLen=${rest.length + 1})`);
+    throw err;
+  }
   const hnUserLc = config.hnUser.toLowerCase();
   const replies: Reply[] = [];
   for (const h of hits) {

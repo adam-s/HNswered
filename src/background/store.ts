@@ -230,7 +230,7 @@ export function createStore(area: Area = chrome.storage.local): Store {
       await set('backfillQueue', queue);
     },
     async getFailureStreak() {
-      return get('failureStreak', { signature: '', count: 0 });
+      return get('failureStreak', { signature: '', count: 0, uniform: true });
     },
     async setFailureStreak(streak) {
       await set('failureStreak', streak);

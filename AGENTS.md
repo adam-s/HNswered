@@ -78,13 +78,14 @@ Tradeoffs, not oversights:
 
 - **No CAS on `chrome.storage.local` RMW.** Mitigated by `navigator.locks` on `LOCK.TICK`, not eliminated. Per-key lock is the real fix if it bites.
 - **`lastAuthorSync` updates on forced syncs.** An alarm tick shortly after force-refresh skips its author-sync work (cadence gate). Gate measures work done, not intent.
-- **Sidepanel `onStorageChanged` filters to `replies` and `config` only.** Timestamps, `backfillQueue`, `monitored`, `backfillSweepFloor` don't affect render output — ignoring them avoids ~500 IPC list-replies round-trips during a fullDrain.
+- **Sidepanel `onStorageChanged` filters to `replies` and `config` only.** Timestamps, `backfillQueue`, `monitored`, `backfillSweepFloor`, `failureStreak` don't affect render output — ignoring them avoids ~500 IPC list-replies round-trips during a fullDrain.
 - **fullDrain holds `LOCK.TICK` for the full queue.** At 500 items × 1.5s pacing = ~12.5min lock hold, blocking alarm-tick polling throughout. Rolling-cap risk at power-user scale. Releasing the lock mid-drain reintroduces the interleaving concerns the lock was added for (concurrent pollComments mutating `replies`, user-change clearing state mid-drain). Revisit if production telemetry shows Algolia 429s during fullDrain.
 - **No Firebase recovery layer.** Relies entirely on Algolia `parent_id`. Sweep measured 99.99% live agreement, but if real-world usage turns up systematic Algolia index-lag misses, add a daily `/v0/item/<id>.json` cross-check.
 - **No per-scan request budget.** Algolia responses are bounded (1000 hits/page) and `pollComments` makes exactly one request per tick, but a pathological `syncAuthor` with >1000 pages of author history + pagination could burn more than expected. Not currently implemented.
 - **`__hnswered` ships in prod bundle.** SW scope only, not web-reachable.
 - **`lastForceRefreshAt` doesn't survive SW suspension.** Spam-clicking through MV3 suspension bypasses the 10s refresh throttle.
 - **`DEBUG` in [src/shared/debug.ts](src/shared/debug.ts)** — `false` in prod; flip to `true` for live diagnosis, revert before shipping.
+- **Tape provenance (2026-07-01).** The `searchByParent` URLs in both fixtures were hand-rewritten `/search` → `/search_by_date` when Algolia dropped `parent_id` filtering on `/search`; the recorded response bodies still come from the old endpoint. Replay-equivalent today (the client reads only `hits[]`; all pages < 1000 hits, all 200s), but CI no longer certifies the live `search_by_date` contract. Re-record both scenarios at the next maintenance window.
 
 ## Noise
 

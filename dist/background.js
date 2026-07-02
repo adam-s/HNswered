@@ -250,7 +250,7 @@ function createStore(area = chrome.storage.local) {
       await set("backfillQueue", queue);
     },
     async getFailureStreak() {
-      return get("failureStreak", { signature: "", count: 0 });
+      return get("failureStreak", { signature: "", count: 0, uniform: true });
     },
     async setFailureStreak(streak) {
       await set("failureStreak", streak);
@@ -512,7 +512,14 @@ async function drainOneBackfillItem(client, store, now = nowMs(), monitoredCache
   });
   const sinceMs = sweepFloorMs;
   const sinceSec = Math.floor(sinceMs / 1e3);
-  const hits = await client.searchByParent(head, sinceSec);
+  let hits;
+  try {
+    hits = await client.searchByParent(head, sinceSec);
+  } catch (err) {
+    await store.setBackfillQueue([...rest, head]);
+    log("poller.BACKFILL.drain", `parent=${head} fetch failed — rotated to queue tail (queueLen=${rest.length + 1})`);
+    throw err;
+  }
   const hnUserLc = config.hnUser.toLowerCase();
   const replies = [];
   for (const h of hits) {
@@ -586,18 +593,73 @@ async function drainBackfillQueueCompletely(client, store) {
 
 const FAILURE_STREAK_ERROR_THRESHOLD = 3;
 function failureSignature(err) {
-  const msg = err instanceof Error ? err.message : String(err);
-  return msg.replace(/\d+/g, "#");
+  let msg;
+  if (err instanceof Error) {
+    msg = err.message;
+  } else if (typeof err === "object" && err !== null) {
+    try {
+      msg = JSON.stringify(err) ?? String(err);
+    } catch {
+      msg = String(err);
+    }
+  } else {
+    msg = String(err);
+  }
+  return msg.replace(/\d+/g, (match, offset) => msg.slice(Math.max(0, offset - 5), offset) === "HTTP " ? match : "#");
 }
 async function recordFailure(store, err) {
   const signature = failureSignature(err);
   const prior = await store.getFailureStreak();
-  const count = prior.signature === signature ? prior.count + 1 : 1;
-  await store.setFailureStreak({ signature, count });
-  return { count, escalate: count >= FAILURE_STREAK_ERROR_THRESHOLD };
+  const count = prior.count + 1;
+  const uniform = prior.count === 0 || (prior.uniform ?? true) && prior.signature === signature;
+  await store.setFailureStreak({ signature, count, uniform });
+  return { count, escalate: count >= FAILURE_STREAK_ERROR_THRESHOLD, uniform };
 }
 async function recordSuccess(store) {
   await store.clearFailureStreak();
+}
+async function reportPollFailure(store, source, err) {
+  let verdict = null;
+  try {
+    verdict = await recordFailure(store, err);
+  } catch (streakErr) {
+  }
+  if (!verdict) {
+    console.error(
+      `[HNswered] ${source} failed, and the failure tracker could not persist state (storage error?). Original failure:`,
+      err
+    );
+    return;
+  }
+  const { count, escalate, uniform } = verdict;
+  if (escalate && uniform) {
+    console.error(
+      `[HNswered] ${source} failed — same error ${count} polls in a row. This is NOT a transient hiccup; likely an HN/Algolia API change or an extension bug. Reply capture may be degraded until it's addressed:`,
+      err
+    );
+  } else if (escalate) {
+    console.error(
+      `[HNswered] ${source} failed — ${count} consecutive polls have failed (differing errors). Persistent problem: network/API outage, or an extension bug. Reply capture is degraded while this continues. Latest error:`,
+      err
+    );
+  } else {
+    console.warn(
+      `[HNswered] ${source} failed (${count}/${FAILURE_STREAK_ERROR_THRESHOLD} before escalation — transient unless failures continue):`,
+      err
+    );
+  }
+}
+async function trackPollOutcome(store, source, fn) {
+  try {
+    await fn();
+  } catch (err) {
+    await reportPollFailure(store, source, err);
+    return;
+  }
+  try {
+    await recordSuccess(store);
+  } catch (err) {
+  }
 }
 
 async function updateBadge(unreadCount) {
@@ -610,17 +672,6 @@ async function updateBadge(unreadCount) {
 }
 
 const store = createStore();
-async function reportPollFailure(source, err) {
-  const { count, escalate } = await recordFailure(store, err);
-  if (escalate) {
-    console.error(
-      `[HNswered] ${source} failed — same error ${count} polls in a row. This is NOT a transient hiccup; likely an HN/Algolia API change or an extension bug. Reply capture may be degraded until it's addressed:`,
-      err
-    );
-  } else {
-    console.warn(`[HNswered] ${source} failed (${count}/${FAILURE_STREAK_ERROR_THRESHOLD} before escalation — transient unless it repeats):`, err);
-  }
-}
 async function refreshBadge() {
   const n = await store.getUnreadCount();
   await updateBadge(n);
@@ -666,25 +717,24 @@ async function runTick() {
     const lockGrantedAt = Date.now();
     const lockWaitMs = lockGrantedAt - lockRequestedAt;
     try {
-      const tickNow = lockGrantedAt;
-      if (lockWaitMs > 50) {
-        log("index.runTick", `lock-wait waitMs=${lockWaitMs}`);
-      }
-      const [cfg, ts, queue, alarm] = await Promise.all([
-        store.getConfig(),
-        store.getTimestamps(),
-        store.getBackfillQueue(),
-        chrome.alarms.get(ALARM.TICK)
-      ]);
-      const gap = ts.lastCommentPoll > 0 ? tickNow - ts.lastCommentPoll : Infinity;
-      log("index.runTick", `STATE=enter nowIso=${new Date(tickNow).toISOString()} config=${JSON.stringify({ user: cfg.hnUser, tickMin: cfg.tickMinutes, backfillDays: cfg.backfillDays, retention: cfg.retentionDays })} gapMs=${gap === Infinity ? "first" : gap} ts=${JSON.stringify({ lastCommentPoll: ts.lastCommentPoll, lastAuthorSync: ts.lastAuthorSync, lastBackfillSweepAt: ts.lastBackfillSweepAt, backfillSweepFloor: ts.backfillSweepFloor })} queueLen=${queue.length} alarm=${alarm ? `period=${alarm.periodInMinutes} nextIso=${new Date(alarm.scheduledTime).toISOString()}` : "NONE"}`);
-      await maybeSyncAuthor(algoliaClient, store);
-      await maybeEnqueueBackfillSweep(store, tickNow);
-      await pollComments(algoliaClient, store);
-      await drainOneBackfillItem(algoliaClient, store, tickNow);
-      await recordSuccess(store);
-    } catch (err) {
-      await reportPollFailure("tick", err);
+      await trackPollOutcome(store, "tick", async () => {
+        const tickNow = lockGrantedAt;
+        if (lockWaitMs > 50) {
+          log("index.runTick", `lock-wait waitMs=${lockWaitMs}`);
+        }
+        const [cfg, ts, queue, alarm] = await Promise.all([
+          store.getConfig(),
+          store.getTimestamps(),
+          store.getBackfillQueue(),
+          chrome.alarms.get(ALARM.TICK)
+        ]);
+        const gap = ts.lastCommentPoll > 0 ? tickNow - ts.lastCommentPoll : Infinity;
+        log("index.runTick", `STATE=enter nowIso=${new Date(tickNow).toISOString()} config=${JSON.stringify({ user: cfg.hnUser, tickMin: cfg.tickMinutes, backfillDays: cfg.backfillDays, retention: cfg.retentionDays })} gapMs=${gap === Infinity ? "first" : gap} ts=${JSON.stringify({ lastCommentPoll: ts.lastCommentPoll, lastAuthorSync: ts.lastAuthorSync, lastBackfillSweepAt: ts.lastBackfillSweepAt, backfillSweepFloor: ts.backfillSweepFloor })} queueLen=${queue.length} alarm=${alarm ? `period=${alarm.periodInMinutes} nextIso=${new Date(alarm.scheduledTime).toISOString()}` : "NONE"}`);
+        await maybeSyncAuthor(algoliaClient, store);
+        await maybeEnqueueBackfillSweep(store, tickNow);
+        await pollComments(algoliaClient, store);
+        await drainOneBackfillItem(algoliaClient, store, tickNow);
+      });
     } finally {
       await refreshBadge();
     }
@@ -701,28 +751,27 @@ async function runRefresh(fullDrain = false) {
   lastForceRefreshAt = now;
   await navigator.locks.request(LOCK.TICK, async () => {
     try {
-      const config = await store.getConfig();
-      log("index.runRefresh", `config hnUser=${JSON.stringify(config.hnUser)} tickMin=${config.tickMinutes} retDays=${config.retentionDays}`);
-      if (!config.hnUser) {
-        log("index.runRefresh", `skip — no hnUser configured`);
-        return;
-      }
-      const refreshNow = Date.now();
-      const [rcfg, rts, rqueue] = await Promise.all([store.getConfig(), store.getTimestamps(), store.getBackfillQueue()]);
-      log("index.runRefresh", `STATE=enter nowIso=${new Date(refreshNow).toISOString()} config=${JSON.stringify({ user: rcfg.hnUser, tickMin: rcfg.tickMinutes, backfillDays: rcfg.backfillDays, retention: rcfg.retentionDays })} ts=${JSON.stringify({ lastCommentPoll: rts.lastCommentPoll, lastAuthorSync: rts.lastAuthorSync, lastBackfillSweepAt: rts.lastBackfillSweepAt, backfillSweepFloor: rts.backfillSweepFloor })} queueLen=${rqueue.length}`);
-      const added = await syncAuthor(algoliaClient, store);
-      log("index.runRefresh", `syncAuthor added=${added}`);
-      await maybeEnqueueBackfillSweep(store, refreshNow);
-      const res = await pollComments(algoliaClient, store);
-      log("index.runRefresh", `pollComments newReplies=${res.newReplies} skipped=${res.skipped} reason=${res.reason}`);
-      if (fullDrain) {
-        await drainBackfillQueueCompletely(algoliaClient, store);
-      } else {
-        await drainOneBackfillItem(algoliaClient, store, refreshNow);
-      }
-      await recordSuccess(store);
-    } catch (err) {
-      await reportPollFailure("refresh", err);
+      await trackPollOutcome(store, "refresh", async () => {
+        const config = await store.getConfig();
+        log("index.runRefresh", `config hnUser=${JSON.stringify(config.hnUser)} tickMin=${config.tickMinutes} retDays=${config.retentionDays}`);
+        if (!config.hnUser) {
+          log("index.runRefresh", `skip — no hnUser configured`);
+          return;
+        }
+        const refreshNow = Date.now();
+        const [rcfg, rts, rqueue] = await Promise.all([store.getConfig(), store.getTimestamps(), store.getBackfillQueue()]);
+        log("index.runRefresh", `STATE=enter nowIso=${new Date(refreshNow).toISOString()} config=${JSON.stringify({ user: rcfg.hnUser, tickMin: rcfg.tickMinutes, backfillDays: rcfg.backfillDays, retention: rcfg.retentionDays })} ts=${JSON.stringify({ lastCommentPoll: rts.lastCommentPoll, lastAuthorSync: rts.lastAuthorSync, lastBackfillSweepAt: rts.lastBackfillSweepAt, backfillSweepFloor: rts.backfillSweepFloor })} queueLen=${rqueue.length}`);
+        const added = await syncAuthor(algoliaClient, store);
+        log("index.runRefresh", `syncAuthor added=${added}`);
+        await maybeEnqueueBackfillSweep(store, refreshNow);
+        const res = await pollComments(algoliaClient, store);
+        log("index.runRefresh", `pollComments newReplies=${res.newReplies} skipped=${res.skipped} reason=${res.reason}`);
+        if (fullDrain) {
+          await drainBackfillQueueCompletely(algoliaClient, store);
+        } else {
+          await drainOneBackfillItem(algoliaClient, store, refreshNow);
+        }
+      });
     } finally {
       await refreshBadge();
     }
@@ -813,11 +862,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             log("index.onMessage", `backfillDays widened → running full catch-up inline`);
             void (async () => {
               await withTickLock(async () => {
-                await maybeEnqueueBackfillSweep(store);
-                await drainBackfillQueueCompletely(algoliaClient, store);
+                await trackPollOutcome(store, "refresh", async () => {
+                  await maybeEnqueueBackfillSweep(store);
+                  await drainBackfillQueueCompletely(algoliaClient, store);
+                });
                 await refreshBadge();
               });
-            })();
+            })().catch((err) => logErr("index.onMessage", "inline fullDrain wrapper failed", err));
           }
           await ensureAlarms();
           respond({ ok: true, data: config });

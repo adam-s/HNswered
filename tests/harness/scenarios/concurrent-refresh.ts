@@ -6,18 +6,23 @@
  * runRefresh calls queue on the same lock; when the second one reaches the
  * body, the throttle check already rejects it into the lock-drain path.
  *
- * THE TAPE IS THE ASSERTION.
+ * HOW A COALESCING REGRESSION ACTUALLY FAILS THIS TEST.
  *
  * The recorded tape contains exactly TWO refresh-flows worth of HN traffic:
  *   1. One auto-refresh kicked off by the user-change branch in set-config.
  *   2. One refresh from the parallel pair below — *coalesced into a single
  *      slot of work* by the Web Lock.
  *
- * If coalescing ever breaks and the parallel pair actually executed two
- * separate refreshes, the second one would try to run Algolia searches again.
- * The transport's strict per-URL cursor (transport.ts) throws TapeMiss on
- * overrun, so the test fails loudly with a clear "cursor exceeds N recorded
- * calls" error instead of silently re-serving.
+ * A TapeMiss alone is NOT the assertion (an earlier version of this header
+ * claimed it was — falsely): a duplicate refresh's TapeMiss is retried by
+ * fetchJSON's backoff and then swallowed by the failure tracking in the
+ * refresh path, so the run itself completes. The regression is caught by two
+ * independent checks instead:
+ *   1. The exact request-count assertion in concurrent-refresh.test.ts —
+ *      duplicate refreshes make more requests than the tape recorded.
+ *   2. The `failureStreak` field in the storage golden — a swallowed
+ *      TapeMiss failure leaves a non-null streak behind, diverging from the
+ *      committed snapshot.
  *
  * What the test does NOT cover:
  *   - Multi-driver-per-process scenarios (chrome shim + dynamic import are
